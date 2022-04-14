@@ -1,0 +1,6 @@
+<launch>
+    <group ns="$(arg veh)">
+        <node pkg="dt_duckie_odometry" type="dt_duckie_odometry_node.py" name="dt_duckie_odometry" output="screen">
+        </node>
+    </group>
+</launch>
