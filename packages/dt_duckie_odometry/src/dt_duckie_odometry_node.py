@@ -29,10 +29,11 @@ class dt_duckie_odometry_node(DTROS):
         self.right_tick_prev = None
 
         self.current_time = rospy.Time.now()
-        self.last_time = rospy.Time.now()
+
 
         self._radius = rospy.get_param(f'/{self.veh_name}/kinematics_node/radius' , 100)
         
+        #Subscribing to Data from ROS Topic which contain ticks from wheel encoder 
         left_encoder_topic = f"/{self.veh_name}/left_wheel_encoder_node/tick"
         self.sub_encoder_ticks_left = rospy.Subscriber(left_encoder_topic, WheelEncoderStamped, self.callback_encoder_left, queue_size=1)
         right_encoder_topic = f"/{self.veh_name}/right_wheel_encoder_node/tick"
@@ -40,11 +41,13 @@ class dt_duckie_odometry_node(DTROS):
         
         #self.sub_executed_commands = rospy.Subscriber('/lilly/wheels_driver_node/wheels_cmd_executed', WheelEncoderStamped)
 
+        #Publisher for odometry messages
         self.odomPub = rospy.Publisher(f"/{self.veh_name}/dt_duckie_odometry/odometry" ,Odometry, queue_size=10, dt_topic_type=TopicType.LOCALIZATION) 
 
         self.LEFT_RECIEVED = False
         self.RIGHT_RECIEVED = False
 
+    #Call for retrieving data of left encoder
     def callback_encoder_left(self, encode_msg_l):
 
         if self.left_tick_prev is None:
@@ -52,7 +55,7 @@ class dt_duckie_odometry_node(DTROS):
             self.left_tick_prev = ticks
         
         delta_left = (encode_msg_l.data - self.left_tick_prev)
-        self.delta_left += delta_left
+        self.delta_left = delta_left
         
         #print(f"left {delta_left}")
         
@@ -60,6 +63,7 @@ class dt_duckie_odometry_node(DTROS):
         self.publishing_odom()   
         self.left_tick_prev = encode_msg_l.data
 
+    #Call for retrieving data of right encoder 
     def callback_encoder_right(self, encode_msg_r):
 
         if self.right_tick_prev is None:
@@ -67,7 +71,7 @@ class dt_duckie_odometry_node(DTROS):
             self.right_tick_prev = ticks
         
         delta_right = (encode_msg_r.data - self.right_tick_prev)
-        self.delta_right += delta_right
+        self.delta_right = delta_right
         
         #print(f"right {delta_right}")
         
@@ -75,19 +79,21 @@ class dt_duckie_odometry_node(DTROS):
         self.publishing_odom()
         self.right_tick_prev = encode_msg_r.data        
 
+    #Publishing odometry data with encoder data
     def publishing_odom(self):
         
+        #Check if both encoders have been set
         if not (self.LEFT_RECIEVED and self.RIGHT_RECIEVED):
             return None
         
         self.LEFT_RECIEVED = False
         self.RIGHT_RECIEVED = False
-        distancePerCount = (pi * 0.66) / 135
-        distanceBetweenWheels = 0.8
+        distancePerCount = (pi * 0.066) / 135
+        distanceBetweenWheels = 0.08
         self.current_time = rospy.Time.now()
 
-        handled_data_left = (self.delta_left * distancePerCount) / (self.current_time - self.last_time).to_sec()
-        handled_data_right = (self.delta_right * distancePerCount) / (self.current_time - self.last_time).to_sec()
+        handled_data_left = (self.delta_left * distancePerCount) 
+        handled_data_right = (self.delta_right * distancePerCount) 
 
         #print(f"Venstre data {handled_data_left}")
         #print(f"Høyre data {handled_data_right}")
@@ -96,10 +102,9 @@ class dt_duckie_odometry_node(DTROS):
         vy = 0
         vth = ((handled_data_right - handled_data_left) / distanceBetweenWheels)
 
-        difference_in_time = (self.current_time - self.last_time).to_sec()
-        data_x = (vx * cos(self.th)) * difference_in_time
-        data_y = (vx * sin(self.th)) * difference_in_time
-        data_th = vth * difference_in_time
+        data_x = (vx * cos(self.th)) 
+        data_y = (vx * sin(self.th)) 
+        data_th = vth
 
         self.x += data_x
         self.y += data_y
@@ -126,7 +131,7 @@ class dt_duckie_odometry_node(DTROS):
                             "base_link",
                             "odom")
 
-        # Publish Odom msg
+        #Publish Odom msg
         odom_msg = Odometry()
         odom_msg.header.stamp = rospy.Time.now()
         odom_msg.header.frame_id = "/odom"
@@ -142,11 +147,10 @@ class dt_duckie_odometry_node(DTROS):
         odom_msg.twist.twist.linear.y = vy
         odom_msg.twist.twist.angular.z = vth
         
+        #Printing the Odom msg
         print(odom_msg)
         
         self.odomPub.publish(odom_msg)
-
-        self.last_time = self.current_time
         
 
 if __name__ == '__main__':
