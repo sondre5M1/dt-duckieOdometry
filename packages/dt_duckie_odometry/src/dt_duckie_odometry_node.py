@@ -32,17 +32,14 @@ class dt_duckie_odometry_node(DTROS):
         self.right_tick_prev = None
 
         self.current_time = rospy.Time.now()
-
-
-        self._radius = rospy.get_param(f'/{self.veh_name}/kinematics_node/radius' , 100)
         
         #Subscribing to Data from ROS Topic which contain ticks from wheel encoder 
         left_encoder_topic = f"/{self.veh_name}/left_wheel_encoder_node/tick"
         self.sub_encoder_ticks_left = rospy.Subscriber(left_encoder_topic, WheelEncoderStamped, self.callback_encoder_left, queue_size=1)
+        
         right_encoder_topic = f"/{self.veh_name}/right_wheel_encoder_node/tick"
         self.sub_encoder_ticks_right = rospy.Subscriber(right_encoder_topic, WheelEncoderStamped, self.callback_encoder_right, queue_size=1)
         
-        #self.sub_executed_commands = rospy.Subscriber('/lilly/wheels_driver_node/wheels_cmd_executed', WheelEncoderStamped)
 
         #Publisher for odometry messages
         self.odomPub = rospy.Publisher(f"/{self.veh_name}/dt_duckie_odometry/odometry" ,Odometry, queue_size=10, dt_topic_type=TopicType.LOCALIZATION) 
@@ -60,6 +57,7 @@ class dt_duckie_odometry_node(DTROS):
         delta_left = (encode_msg_l.data - self.left_tick_prev)
         self.delta_left = delta_left
         
+        #Benyttet for å se data fra venstre rotasjonskoder
         #print(f"left {delta_left}")
         
         self.LEFT_RECIEVED = True
@@ -76,6 +74,7 @@ class dt_duckie_odometry_node(DTROS):
         delta_right = (encode_msg_r.data - self.right_tick_prev)
         self.delta_right = delta_right
         
+        #Benyttet for å se data fra høyre rotasjonskoder
         #print(f"right {delta_right}")
         
         self.RIGHT_RECIEVED = True
@@ -85,7 +84,7 @@ class dt_duckie_odometry_node(DTROS):
     #Publishing odometry data with encoder data
     def publishing_odom(self):
         
-        #Check if both encoders have been set
+        #Sjekker om begge koderne har mottat ny data som skal brukes
         if not (self.LEFT_RECIEVED and self.RIGHT_RECIEVED):
             return None
         
@@ -94,16 +93,15 @@ class dt_duckie_odometry_node(DTROS):
     
         self.current_time = rospy.Time.now()
 
+        #Beregner siste rotasjonskoder med omkretsen av hjulet delt på antall rotasjoner for å rotere fullt
         handled_data_left = (self.delta_left * self.distancePerCount) 
         handled_data_right = (self.delta_right * self.distancePerCount) 
-
-        #print(f"Venstre data {handled_data_left}")
-        #print(f"Høyre data {handled_data_right}")
 
         vx = ((handled_data_right + handled_data_left) / 2)
         vy = 0
         vth = ((handled_data_right - handled_data_left) / self.distanceBetweenWheels)
 
+        #Her beregnes distansen som er traversert
         data_x = (vx * cos(self.th)) 
         data_y = (vx * sin(self.th)) 
         data_th = vth
@@ -115,6 +113,8 @@ class dt_duckie_odometry_node(DTROS):
         odometry_quaternion = tf.transformations.quaternion_from_euler(0,0,self.th)
 
         tf_br = tf.TransformBroadcaster()
+
+        #Det opprettes en melding for TransformBroadcast som fungerer som node /tf
 
         odometry_trans = geometry_msgs.msg.TransformStamped()
 
@@ -133,18 +133,22 @@ class dt_duckie_odometry_node(DTROS):
                             "base_link",
                             "odom")
 
-        #Publish Odom msg
+        #Setter opp og utfyller en odometri melding før den publiseres.
         odom_msg = Odometry()
+        
         odom_msg.header.stamp = rospy.Time.now()
         odom_msg.header.frame_id = "/odom"
         odom_msg.child_frame_id = "/base_link"
+        
         odom_msg.pose.pose.position.x = self.x
         odom_msg.pose.pose.position.y = self.y
         odom_msg.pose.pose.position.z = 0.0
+
         odom_msg.pose.pose.orientation.x = odometry_quaternion[0]
         odom_msg.pose.pose.orientation.y = odometry_quaternion[1]
         odom_msg.pose.pose.orientation.z = odometry_quaternion[2]
         odom_msg.pose.pose.orientation.w = odometry_quaternion[3]
+        
         odom_msg.twist.twist.linear.x = vx
         odom_msg.twist.twist.linear.y = vy
         odom_msg.twist.twist.angular.z = vth
@@ -157,5 +161,6 @@ class dt_duckie_odometry_node(DTROS):
 
 if __name__ == '__main__':
     node = dt_duckie_odometry_node(node_name='dt_duckie_odometry')
-    # Keep it spinning to keep the node alive
+    
+    # Det kjøres rospy.spin for å holde noden i live.
     rospy.spin()
