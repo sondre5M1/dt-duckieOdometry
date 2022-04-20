@@ -21,6 +21,9 @@ class dt_duckie_odometry_node(DTROS):
         self.delta_left = 0
         self.delta_right = 0
         
+        self.distancePerCount = (pi * 0.0636) / 135
+        self.distanceBetweenWheels = 0.1
+
         self.x = 0
         self.y = 0
         self.th = 0
@@ -88,19 +91,18 @@ class dt_duckie_odometry_node(DTROS):
         
         self.LEFT_RECIEVED = False
         self.RIGHT_RECIEVED = False
-        distancePerCount = (pi * 0.066) / 135
-        distanceBetweenWheels = 0.08
+    
         self.current_time = rospy.Time.now()
 
-        handled_data_left = (self.delta_left * distancePerCount) 
-        handled_data_right = (self.delta_right * distancePerCount) 
+        handled_data_left = (self.delta_left * self.distancePerCount) 
+        handled_data_right = (self.delta_right * self.distancePerCount) 
 
         #print(f"Venstre data {handled_data_left}")
         #print(f"Høyre data {handled_data_right}")
 
         vx = ((handled_data_right + handled_data_left) / 2)
         vy = 0
-        vth = ((handled_data_right - handled_data_left) / distanceBetweenWheels)
+        vth = ((handled_data_right - handled_data_left) / self.distanceBetweenWheels)
 
         data_x = (vx * cos(self.th)) 
         data_y = (vx * sin(self.th)) 
